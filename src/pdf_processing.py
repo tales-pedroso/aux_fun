@@ -3,11 +3,13 @@ from pdfminer.high_level import extract_text
 import re
 import os
 import glob
+from datetime import datetime
 
-# finish getting the encoding right
+# put compiled regexes as GLOBAL VARIABLES
 
-#SRC_FOLDER = 'C:\\Users\\Tales\\Desktop\\graviola\\src'
-SRC_FOLDER = os.path.dirname(__file__)
+YEAR = datetime.now().year
+SRC_FOLDER = 'C:\\Users\\Tales\\Desktop\\graviola\\src'
+# SRC_FOLDER = os.path.dirname(__file__)
 GRAV_FOLDER = os.path.dirname(SRC_FOLDER)
 APS_FOLDER = GRAV_FOLDER + os.sep + 'aps'
 STATES = ('AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE',
@@ -18,6 +20,44 @@ OUTPUT_CSV_FILE = OUTPUT_FOLDER + os.sep + 'output.csv'
 def get_pdf_files():
     pdf_files = [pdf for pdf in glob.glob(APS_FOLDER + os.sep + '*.pdf')]
     return pdf_files
+
+pdf_files = get_pdf_files()
+
+for i in range(len(pdf_files)):
+    text = extract_text(pdf_files[i])
+    with open(f'{i}.txt', 'w') as f:
+        f.write(text)
+
+
+def get_text_between(this, that):
+    compiled_regex = re.compile(f'{this}(.*?){that}', re.VERBOSE)
+    return compiled_regex
+
+
+value           = get_text_between('IMPORTÂNCIA\sA\sPAGAR:\sR\$', '\(')
+cpf_and_account = get_text_between('CPF', 'VENCIMENTO')
+process         = get_text_between('EXPEDIENTE', 'FAVORECIDO')
+ap              = get_text_between('AP\snº', '{YEAR}')
+ne_num          = get_text_between('EMPENHO', 'ELEM.\sDE\sDESPESA')
+subelement      = get_text_between('ELEM.\sDE\sDESPESA', 'ITEM\sDE\sPROG')
+observation     = get_text_between('HISTÓRICO', '-\s[A-Z][A-Z]')
+branch = re.compile('(\d{2,4}).*?HISTÓRICO', re.VERBOSE)
+
+rules = dict(value           = ('IMPORTÂNCIA\sA\sPAGAR:\sR\$', '\('),
+             cpf_and_account = ('CPF', 'VENCIMENTO'),
+             process         = ('EXPEDIENTE', 'FAVORECIDO'),
+             ap              = ('AP\snº', '{YEAR}'),
+             ne_num          = ('EMPENHO'   , 'ELEM.\sDE\sDESPESA'),
+             subelement      = ('ELEM.\sDE\sDESPESA', 'ITEM\sDE\sPROG'),
+             observation     = ('HISTÓRICO', '-\s[A-Z][A-Z]'))
+
+keys = rules.keys()
+
+map(get_text_between, rules.keys())
+
+test = 'it starts with one action'
+compiled_regex = get_text_between('starts', 'action')
+
 
 value_regex = re.compile(r'''IMPORTÂNCIA      # gets everything after R$
                              .*               # and before )
@@ -61,83 +101,6 @@ observation_regex = re.compile(r'''HISTÓRICO       # gets everything that comes
                                (.*?-\s[A-Z][A-Z])   # and it ends in "- AA", where A is any capital letter                               
                                ''', re.VERBOSE)    # HISTÓRICO Autorizo pagamento (...) Rio de Janeiro - RJ
 
-# def get_value(string):
-#     '''
-#     multiple values appear throughout the document. the one that matters is
-#     always preceded by 'IMPORTÂNCIA A PAGAR: R$' and it always end before a 
-#     closing parentheses
-#     e.g. IMPORTÂNCIA A PAGAR: R$ 6.661,57 (
-#     '''
-#     match = re.search(value_regex, string)
-#     value = match.groups()[0].strip()
-#     return value
-
-# def get_cpf_and_account_num(string):
-#     '''
-#     multiple cpf values appear throughout the document. the one that matters
-#     comes right before the account number, which comes right before the 
-#     word 'VENCIMENTO'
-#     e.g. CPF 539.170.227-53 48062-9 VENCIMENTO
-#     '''
-#     match = re.search(cpf_and_account_num_regex, string)
-#     cpf = match.groups()[0]
-#     account_num = match.groups()[1].strip()
-#     return dict(cpf = cpf, account_num = account_num)
-
-# def get_ap_num(string):
-#     '''
-#     multiple numbers appear throught the document. the one that matters comes
-#     right after "AP nº" and it is a sequence of at most 3 digits, followed by
-#     a date with 4 digits
-#     e.g. AP nº 372/2021
-#     '''
-#     match = re.search(ap_num_regex, string)
-#     ap_num = match.groups()[0].strip()
-#     return ap_num
-
-# def get_process_num(string):
-#     '''
-#     multiple numbers appear throught the document. the one that matters comes
-#     right after "EXPEDIENTE" and right before "FAVORECIDO"
-#     e.g. Nº DO PROC/EXPEDIENTE 0045142.00001072/2021-87 FAVORECIDO
-#     '''
-#     match = re.search(process_num_regex, string)
-#     process_num = match.groups()[0].strip()
-#     return process_num
-
-# def get_branch_num(string):
-#     '''
-#     gets the numbers that come before "HISTÓRICO". it does not take the 
-#     confirmation code that comes after '-'. returns a 4-digit number, filling
-#     the left-hand side with zeros, when needed
-#     e.g. 12 -> '0012' 12-3 -> '0012'
-#     '''
-#     match = re.search(branch_num_regex, string)
-#     branch_num = match.groups()[0]
-#     branch_num = branch_num.zfill(4)
-#     return branch_num
-    
-# def get_ne_num(string):
-#     '''
-#     '''
-#     match = re.search(ne_num_regex, string)
-#     ne_num = match.groups()[0].strip()
-#     return ne_num
-    
-# def get_subelement_num(string):
-#     match = re.search(subelement_num_regex, string)
-#     subelement_num = match.groups()[0].strip()
-#     return subelement_num
-
-# def get_observation(string):
-#     match = re.search(observation_regex, string)
-#     observation = match.groups()[0].strip()
-    
-#     if observation[-2:] not in STATES:
-#         raise Exception(f'''Falha em extrair a observação da AP. Esperava um texto terminado em sigla
-#                         de um Estado, e.g. RJ, SP, PE. Encontrou: {match.groups()[0]}''')
-#     else: 
-#         return observation
 
 class FromPdfToString(object):
     def __init__(self, pdf_filepath):
