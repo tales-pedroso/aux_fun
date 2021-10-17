@@ -1,4 +1,6 @@
 aps/
 output/
+depend/
+*.log
 *.pyc
 __pycache__
