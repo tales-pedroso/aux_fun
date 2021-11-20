@@ -1,39 +1,17 @@
-# run and see if it can create a source doc tab all the way till the end
+# -*- coding: utf-8 -*-
+
 # create a function from_table_to_page_object to generate code for page objects
 # name (str), id (str), set (bool), get(bool), click(bool), advance(bool), check(bool)
 # from this table, generate code in .py file
+# separate page objects from higher level functions
+# define a decorator to try again if it hits StaleElement. usable in click(), set_() and check()
 
-# -*- coding: utf-8 -*-
 import time
-from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support.expected_conditions import element_to_be_clickable, \
-                                                           text_to_be_present_in_element_value, \
-                                                           any_of, none_of, staleness_of, \
-                                                           visibility_of_element_located, element_attribute_to_include
+from selenium.webdriver.support.expected_conditions import element_to_be_clickable, any_of                                                           
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException, ElementClickInterceptedException
-from selenium.webdriver.common.keys import Keys
 from re import search, VERBOSE
-
-GECKODRIVER_PATH = 'C:\\Users\\Tales\\Desktop\\graviola\\depend\\geckodriver.exe'
-SIAFI_URL = 'https://siafi.tesouro.gov.br'
-CPF = ''
-PASSWORD = ''
-
-# define a decorator to try again if it hits StaleElement
-def thrice():
-    def inner_func(func):
-        count = 0
-        try:
-            func()
-        except StaleElementReferenceException:
-            count += 1
-            func()
-    
-    return inner_func
-
 
 #==================================================================================================================
 class PageObject():
@@ -42,25 +20,34 @@ class PageObject():
     '''
     def __init__(self, driver):
         self.driver = driver
-        self.wait = WebDriverWait(driver, 15)
+        self.wait = WebDriverWait(self.driver, 15)
         
     def get(self, id_):
         return self.wait.until(element_to_be_clickable((By.ID, id_)))
 
     def set_(self, id_, value):
-        elem = self.get(id_)
-        elem.clear()
-        elem.send_keys(value)
+        try:
+            elem = self.get(id_)
+            elem.clear()
+            elem.send_keys(value)
+        except StaleElementReferenceException:
+            print('hit stale element')
+            self.set_(id_, value)
     
     def set_date(self, id_, date):
+        # fix the name. other inputs other than date also require this method
         elem = self.get(id_)
         elem.clear()
         self.driver.execute_script("arguments[0].value = arguments[1]", 
                                    elem, date)
         
     def check(self, id_, expected_value):
-        elem = self.get(id_)
-        return elem.get_attribute('value') == expected_value
+        try:
+            elem = self.get(id_)
+            return elem.get_attribute('value') == expected_value
+        except StaleElementReferenceException:
+            print('hit stale element')
+            self.check_(id_, expected_value)
 
     def advanced(self, id_):
         self.get(id_)
@@ -100,14 +87,14 @@ class SiafiAuth(PageObject):
         condition2 = element_to_be_clickable((By.ID, self.accept_terms_btn_id))
         conditions = (condition1, condition2)
         
-        # waits until one of the 2 buttons show up for 100 seconds
+        # waits until one of the 2 buttons shows up for 100 seconds
         self.wait = WebDriverWait(self.driver, timeout = 100)
         
         # get the first button that appears
         elem = self.wait.until(any_of(*conditions))
         
         # restore initial timeout conditions
-        self.wait = WebDriverWait(driver, 15)
+        self.wait = WebDriverWait(self.driver, 15)
         
         # figure out which button is it
         matched_btn = elem.get_attribute('id')
@@ -145,6 +132,7 @@ class SiafiInitialPage(PageObject):
         return self.check(self.search_input_id, expected_text)
         
     def submit_search(self):
+        # standardize this. call it click
         self.click(self.submit_btn_id)
         
     def advanced_to_incdh(self):
@@ -169,6 +157,7 @@ class IncdhInitialPage(SiafiInitialPage):
         return True
         
     def submit(self):
+        # standardize this. call it click
         self.click(self.confirm_btn_id)
         
     def advanced_to_dh_basic_data(self):
@@ -180,7 +169,7 @@ class BasicData(PageObject):
     process_num_input_id = 'form_manterDocumentoHabil:processo_input'
     validation_date_input_id = 'form_manterDocumentoHabil:dataAteste_calendarInputDate'
     value_input_id = 'form_manterDocumentoHabil:valorPrincipalDocumento_input'
-    recipient_input_id = 'form_manterDocumentoHabil:credorDevedor_input'
+    recipient_input_id = 'form_manterDocumentoHabil:credorDevedor_input' # may throw StaleElement when checking
     observation_textarea_id = 'form_manterDocumentoHabil:observacao'
     doc_emitter_input_id = 'form_manterDocumentoHabil:tableDocsOrigem:0:emitenteDocOrigem_input'
     recipient_name_id = 'form_manterDocumentoHabil:nomeCredorDevedor'
@@ -210,6 +199,7 @@ class BasicData(PageObject):
         self.set_(self.observation_textarea_id, observation)
     
     def is_recipient_name_loaded(self):
+        # standardize this. call it check
         condition = lambda d: d.find_element(By.ID, self.recipient_name_id).get_attribute('innerHTML') != ''
         
         try:
@@ -244,13 +234,15 @@ class BasicData(PageObject):
         return self.advanced(self.pco_tab_id)
     
     def click_pco_tab(self):
-        # !!! may throw StaleElementReferenceException
+        # may throw StaleElementReferenceException, which is not treated so far
         self.click(self.pco_tab_id)
     
     def advanced_to_pco(self):
         return self.advanced(self.pco_situation_input_id)
     
-    # errors are class="error"      
+    # it does not have a method to evaluate errors in Siafi's validation
+    # errors are class="error"
+    # also, it throws TimeoutException without saying anything. encapsulate that to return a meaningful message
     
 #==================================================================================================================    
 class SourceDoc(PageObject):
@@ -269,6 +261,7 @@ class SourceDoc(PageObject):
         self.click(self.include_source_doc_btn_id)
         
     def did_it_include_source_doc(self):
+        # standardize this. there is checking an input and there is checking if it advanced
         # assumes there is only one source doc
         return self.advanced(self.doc_emitter_input_id)
     
@@ -336,11 +329,9 @@ class Pco(PageObject):
     
     def set_ledger_account(self, ledger_account):
         self.set_date(self.ledger_account_input_id, ledger_account)
-        #self.click(self.ledger_account_input_id) # necessary to trigger formating from server
         
     def set_benefits_account(self, benefits_account):
         self.set_date(self.benefits_account_input_id, benefits_account)
-        #self.click(self.benefits_account_input_id)
         
     def set_value(self, value):
         self.set_(self.value_input_id, value)
@@ -372,7 +363,6 @@ class Pco(PageObject):
     def advanced_to_payment_data(self):
         return self.advanced(self.payment_data_table_checkbox_id)
     
-    
 class PaymentData(PageObject):
     include_row_btn_id = 'form_manterDocumentoHabil:lista_DPgtoOB_painel_incluir'
     recipient_input_id = 'form_manterDocumentoHabil:lista_DPgtoOB:0:codigoFavorecido_input'
@@ -387,39 +377,29 @@ class PaymentData(PageObject):
         
     def click_include_row_btn(self):
         self.click(self.include_row_btn_id)
-        #print('clicked include row button')
-    
+
     def did_it_include_row(self): # buggy
-        # what to do if it didn't?
-        #print('inside did_it_include_row')
         return self.advanced(self.recipient_input_id)
         
     def set_recipient(self, recipient):
-        #print('inside set recipient')
         self.set_(self.recipient_input_id, recipient)
     
     def set_value(self, value):
-        #print('inside set_value')
         self.set_(self.value_input_id, value)
     
     def check_recipient(self, expected_recipient):
-        #print('inside check recipient')
         return self.check(self.recipient_input_id, expected_recipient)
     
     def check_value(self, expected_value):
-        #print('inside check value')
         return self.check(self.value_input_id, expected_value)
 
     def click_confirm_row(self):
-        #print('inside click confirm btn')
         self.click(self.confirm_row_btn_id)
     
     def is_first_row_created(self):
-        #print('inside is_first_row_created')
         return self.advanced(self.first_row_checkbox_id)
     
     def click_pre_doc(self):
-        #print('inside click_pre_doc')
         self.click(self.predoc_btn_id)
     
     def advanced_to_pre_doc(self):
@@ -433,7 +413,7 @@ class PreDoc(PageObject):
     gov_branch_num_input_id = 'form_manterDocumentoHabil:pagador_agencia_input'
     observation_textarea_id = 'form_manterDocumentoHabil:observacaoPredoc'
     confirm_btn_id = 'form_manterDocumentoHabil:btnConfirmarPredoc'
-    cost_center_btn_id = 'form_manterDocumentoHabil:abaCentroCustoId' # intercepted
+    cost_center_btn_id = 'form_manterDocumentoHabil:abaCentroCustoId' # gets intercepted
     cost_center_month_input_id = 'form_manterDocumentoHabil:cvMesReferenciaCentroCusto_input'
     
     def __init__(self, driver):
@@ -482,7 +462,7 @@ class PreDoc(PageObject):
         return self.advanced(self.cost_center_btn_id)
     
     def click_cost_center(self):
-        # fix this later
+        # remove infinite loop and set a fixed number of times to try it
         while True:
             try:
                 self.click(self.cost_center_btn_id)
@@ -543,7 +523,7 @@ class Register(PageObject):
     def advanced_to_registered_panel(self):
         return self.advanced(self.notification_text_id)
     
-    def extract_string_in_class_legend(self):
+    def extract_string_in_class_legend(self): # delegate to some string processing class
         elem = self.wait.until(element_to_be_clickable((By.CLASS_NAME, 'legend')))
         string = elem.text
         
@@ -567,16 +547,20 @@ class Register(PageObject):
     def returned_to_incdh(self):
         return self.advanced(self.dh_num_text_id)
 
-#==================================================================================================================
-#==================================================================================================================
+
 #==================================================================================================================
 #==================================================================================================================
 # HIGH-LEVEL FUNCTIONS
 
 # they always get a page object, call methods and pass values
 # can I make them into classes? with zip(method_list, args_list)
+# they are just a bunch of setters, a bunch of checkers, a page object, and a few transitions (advanced)
+# after Exception, it cannot execute go_to_incdh() then include_fl()
+# it stops there
+# sometimes the website throws 500 error code when filling source_doc data
+# high-level functions may be Setter, Checker, Transition (from tabs and server responses), 
 
-def log_in_to_siafi(driver):
+def log_in_to_siafi(driver, cpf, password):
     # get page object
     siafi_auth = SiafiAuth(driver)
     
@@ -584,8 +568,8 @@ def log_in_to_siafi(driver):
     siafi_auth.go_to_authentication_page()
     
     # type cpf and password
-    siafi_auth.set_cpf(CPF)
-    siafi_auth.set_password(PASSWORD)
+    siafi_auth.set_cpf(cpf)
+    siafi_auth.set_password(password)
     
     # put the focus on captcha resolution so that the user doesn't have to do that
     siafi_auth.put_focus_on_captcha_input()
@@ -626,7 +610,7 @@ def include_fl(driver):
     # set dh as FL
     incdh_initial_page.set_dh('FL')
     
-    # async JavaScript call inserts title after we input a valid DH type. let's check if it is right
+    # async JavaScript call inserts title after we input a valid DH type. check if it is right
     if incdh_initial_page.check_dh_title('FOLHA DE PAGAMENTO'):
         
         # hit the confirm button
@@ -645,7 +629,7 @@ def create_basic_data(driver, basic_data_dict):
     
     # set values into input/textarea
     basic_data.set_due_date(basic_data_dict['due_date'])
-    basic_data.set_process_num((basic_data_dict['process_num']))
+    basic_data.set_process_num((basic_data_dict['truncated_process_num']))
     basic_data.set_validation_date(basic_data_dict['validation_date'])
     basic_data.set_value(basic_data_dict['value'])
     basic_data.set_recipient(basic_data_dict['recipient'])
@@ -661,7 +645,7 @@ def check_basic_data(driver, basic_data_dict):
     right = True
     
     right = right and basic_data.check_due_date(basic_data_dict['due_date'])
-    right = right and basic_data.check_process_num(basic_data_dict['process_num'])
+    right = right and basic_data.check_process_num(basic_data_dict['truncated_process_num'])
     right = right and basic_data.check_validation_date(basic_data_dict['validation_date'])
     right = right and basic_data.check_value(basic_data_dict['value'])
     right = right and basic_data.check_recipient(basic_data_dict['recipient'])
@@ -686,9 +670,9 @@ def create_source_doc(driver, source_doc_dict):
           
         # set values into input
         source_doc.set_doc_emitter(source_doc_dict['doc_emitter'])
-        source_doc.set_doc_date(source_doc_dict['doc_date'])
-        source_doc.set_doc_num(source_doc_dict['doc_num'])
-        source_doc.set_doc_value(source_doc_dict['doc_value'])
+        source_doc.set_doc_date(source_doc_dict['ap_date'])
+        source_doc.set_doc_num(source_doc_dict['ap_num'])
+        source_doc.set_doc_value(source_doc_dict['value'])
         
         print('Filled Source Document')
         
@@ -703,9 +687,9 @@ def check_source_doc(driver, source_doc_dict):
     right = True
     
     right = right and source_doc.check_doc_emitter(source_doc_dict['doc_emitter'])
-    right = right and source_doc.check_doc_date(source_doc_dict['doc_date'])
-    right = right and source_doc.check_doc_num(source_doc_dict['doc_num'])
-    right = right and source_doc.check_doc_value(source_doc_dict['doc_value'])
+    right = right and source_doc.check_doc_date(source_doc_dict['ap_date'])
+    right = right and source_doc.check_doc_num(source_doc_dict['ap_num'])
+    right = right and source_doc.check_doc_value(source_doc_dict['value'])
     
     if right:
         print('Source document values match their expected values')
@@ -750,8 +734,8 @@ def create_pco(driver, pco_dict):
     pco.set_situation_code(pco_dict['situation_code'])
     pco.click_confirm_situation_btn()
     
-    pco.set_ne(pco_dict['ne'])
-    pco.set_subelement(pco_dict['subelement'])
+    pco.set_ne(pco_dict['ne_num'])
+    pco.set_subelement(pco_dict['subelement_num'])
     pco.set_ledger_account(pco_dict['ledger_account'])
     pco.set_benefits_account(pco_dict['benefits_account'])
     pco.set_value(pco_dict['value'])
@@ -762,8 +746,8 @@ def check_pco(driver, pco_dict):
     # confirm input values
     right = True
     
-    right = right and pco.check_ne(pco_dict['ne'])
-    right = right and pco.check_subelement(pco_dict['subelement'])
+    right = right and pco.check_ne(pco_dict['ne_num'])
+    right = right and pco.check_subelement(pco_dict['subelement_num'])
     right = right and pco.check_ledger_account(pco_dict['ledger_account'])
     right = right and pco.check_benefits_account(pco_dict['benefits_account'])
     right = right and pco.check_value(pco_dict['value'])
@@ -809,7 +793,7 @@ def create_payment_data_tab(driver):
 def set_payment_data_tab(driver, pay_dict):
     payment_data = PaymentData(driver)
     
-    payment_data.set_recipient(pay_dict['recipient'])
+    payment_data.set_recipient(pay_dict['cpf'])
     payment_data.set_value(pay_dict['value'])
     
 def check_payment_data_tab(driver, pay_dict):
@@ -817,7 +801,7 @@ def check_payment_data_tab(driver, pay_dict):
     
     right = True
     
-    right = right and payment_data.check_recipient(pay_dict['recipient'])
+    right = right and payment_data.check_recipient(pay_dict['cpf'])
     right = right and payment_data.check_value(pay_dict['value'])
     
     if right:
@@ -830,7 +814,7 @@ def confirm_payment_data_row(driver):
     payment_data = PaymentData(driver)
     
     payment_data.click_confirm_row()
-    if payment_data.is_first_row_created(): # !!! buggy
+    if payment_data.is_first_row_created():
         print('Confirmed a row inclusion in Payment Data tab')
         return
     else:
@@ -921,7 +905,7 @@ def confirm_cost_center(driver, cc_dict):
     
     cost_center.click_confirm()
     
-    if cost_center.check_total_cost(cc_dict['total_cost']):
+    if cost_center.check_total_cost(cc_dict['value']):
         print('Cost Center tab total cost is correct')
     else:
         raise Exception('Failed to input the correct total cost in Cost Center tab')
@@ -953,91 +937,4 @@ def return_from_dh_panel(driver):
         print('Returned to INCDH')
         return
     else:
-        raise Exception('Failed to return to INCDH')
-
-#=========================================================================================        
-        
-if __name__ == '__main__':
-    # !!! after Exception, it cannot execute go_to_incdh() then include_fl()
-    # it stops there
-    # sometimes the website throws 500 error code when filling source_doc data
-    # high-level functions may be Setter, Checker, Transition (from tabs and server responses), 
-    
-    bd = dict(due_date = '20/10/2021',
-          process_num = '45142.001173/2021-76',
-          validation_date = '20/10/2021',
-          value = '1.024,47',
-          recipient = '36912843883',
-          observation = 'Testing new routine')
-
-    sd = dict(doc_emitter = '114601',
-              doc_date = '20/10/2021',
-              doc_num = 'AP 304/2021',
-              doc_value = '1.024,47')
-
-    pd = dict(situation_code = 'DFL038',
-              ne = '2021NE000028',
-              subelement = '01',
-              ledger_account = '3.2.9.1.1.01.00',
-              benefits_account = '2.1.1.2.1.01.00',
-              value = '1.024,47')
-    
-    pay_dict = dict(recipient = '36912843883',
-                    value = '1.024,47')
-    
-    pre_doc_dict = dict(bank_code = '341', 
-                        branch_num = '6317',
-                        account_num = '54838',
-                        gov_bank_code = '001',
-                        gov_branch_num = '2234',
-                        observation = 'testing new routine')
-    
-    cc_dict = dict(month = '10', 
-                   year = '2021',
-                   total_cost = '1.024,47')
-    
-    service = Service(GECKODRIVER_PATH)
-    driver = webdriver.Firefox(service = service)
-    driver.maximize_window()
-    
-    log_in_to_siafi(driver)
-    
-    go_to_incdh(driver)
-    include_fl(driver)
-    
-    create_basic_data(driver, bd)
-    check_basic_data(driver, bd)
-    
-    create_source_doc(driver, sd)
-    check_source_doc(driver, sd)
-    confirm_source_doc(driver)
-    
-    confirm_basic_data_tab(driver)
-    
-    create_pco(driver, pd)
-    check_pco(driver, pd)
-    confirm_pco(driver)
-    from_pco_to_payment_data(driver)
-    
-    create_payment_data_tab(driver)
-    set_payment_data_tab(driver, pay_dict)
-    check_payment_data_tab(driver, pay_dict)
-    confirm_payment_data_row(driver)
-    from_payment_data_to_pre_doc(driver)
-    
-    set_pre_doc(driver, pre_doc_dict)
-    check_pre_doc(driver, pre_doc_dict)
-    confirm_pre_doc(driver)
-    from_pre_doc_to_cost_center(driver)
-    
-    set_cost_center(driver, cc_dict)
-    check_cost_center(driver, cc_dict)
-    confirm_cost_center(driver, cc_dict)
-    
-    register_dh(driver)
-    dh = get_dh(driver)
-    return_from_dh_panel(driver)
-    
-    
-    
-    
+        raise Exception('Failed to return to INCDH') 

@@ -1,19 +1,25 @@
 # -*- coding: utf-8 -*-
 
-#SRC_FOLDER = 'C:\\Users\\Tales\\Desktop\\graviola\\src'
 import unittest
+from os import chdir, path, sep
+
+test_folder = path.dirname(__file__)
+root_folder = path.dirname(test_folder)
+chdir(root_folder + sep + 'src')
 
 from pipeline import (Getter, ValueGetter, NeGetter, ApGetter, ProcessNumGetter, BranchNumGetter, 
                       SubelementNumGetter, ObservationGetter, DeceasedPersonNameGetter, DateOfDeathGetter, 
-                      CpfGetter, AccountNumGetter,
+                      CpfGetter, AccountNumGetter, ApDateGetter, BankNameGetter,
                       Processor, BranchNumProcessor, SubelementNumProcessor, DeceasedPersonNameProcessor, 
                       DateOfDeathProcessor, CpfProcessor, AccountNumProcessor,
                       Checker, ValueChecker, NeChecker, ApChecker, ProcessNumChecker, BranchNumChecker, 
                       SubelementNumChecker, DeceasedPersonNameChecker, DateOfDeathChecker, CpfFirstChecker, 
-                      CpfSecondChecker, AccountNumChecker,
+                      CpfSecondChecker, AccountNumChecker, ApDateChecker, BankNameChecker,
                       ValuePipeline, NePipeline, ApPipeline, ProcessNumPipeline, BranchNumPipeline, 
                       SubelementNumPipeline, DeceasedPersonNamePipeline, DateOfDeathPipeline, CpfPipeline,
-                      AccountNumPipeline)
+                      AccountNumPipeline, ApDatePipeline, BankNamePipeline)
+
+#==============================================================================
 
 class GetterTest(unittest.TestCase):
     def test_gets_the_shortest_string_when_ambiguous(self):
@@ -205,7 +211,20 @@ class BranchNumGetterTest(unittest.TestCase):
         test_string = 'BANCO DO BRASIL 1826 HISTÓRICO'
         getter = BranchNumGetter()
         output = getter.get(test_string)
-        self.assertEqual(output, '1826 ')
+        self.assertEqual(output, 'RASIL 1826')
+        
+    def test_gets_num_when_input_has_a_lot_of_spaces(self):
+        test_string = '          221 HISTÓRICO '
+        getter = BranchNumGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, '       221')
+        
+    def test_gets_num_when_there_are_repeated_space_and_num(self):
+        # regression test
+        test_string = 'ap 406/21 cpf 022.221.117-88 221 HISTÓRICO '
+        getter = BranchNumGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, '117-88 221')
     
     def test_gets_none_when_there_is_no_historico_keyword(self):
         test_string = 'BANCO DO BRASIL 1826 HISTORICO' # missing acute accent
@@ -217,7 +236,7 @@ class BranchNumGetterTest(unittest.TestCase):
         test_string = 'random text 1.8/2*6y HISTÓRICO'  # people do type . when the expected input is a number
         getter = BranchNumGetter()
         output = getter.get(test_string)
-        self.assertEqual(output, '1.8/2*6y ')
+        self.assertEqual(output, 't 1.8/2*6y')
         
 class SubelementNumGetterTest(unittest.TestCase):
     def test_gets_num_when_start_is_elem_de_despesa_and_finish_is_item_de_prog(self):
@@ -380,6 +399,58 @@ class AccountNumGetterTest(unittest.TestCase):
         getter = AccountNumGetter()
         output = getter.get(test_string)
         self.assertEqual(output, None)
+        
+class ApDateGetterTest(unittest.TestCase):
+    def test_gets_date_when_start_is_uppercase_data_and_finish_is_date_and_space(self):
+        test_string = ' DATA: 23/09/2021 CPF'
+        getter = ApDateGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, '23/09/2021')
+        
+    def test_gets_date_even_if_it_is_an_impossible_date(self):
+        test_string = ' DATA: 99/99/9999 221'
+        getter = ApDateGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, '99/99/9999')
+    
+    def test_gets_none_when_start_is_not_uppercase_data(self):
+        test_string = ' datA: 23/09/2021 CPF'
+        getter = ApDateGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, None)
+    
+    def test_gets_none_when_finish_is_not_date_and_space(self):
+        test_string = ' LOCAL E DATA: RESPONSÁVEL'
+        getter = ApDateGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, None)
+    
+class BankNameGetterTest(unittest.TestCase):
+    def test_gets_bank_name_when_it_is_bb(self):
+        test_string = 'BANCO: BANCO DO BRASIL 4683'
+        getter = BankNameGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, 'BANCO DO BRASIL')
+    
+    def test_gets_bank_name_when_it_is_cef(self):
+        test_string = 'BANCO: CAIXA ECONÔMICA FEDERAL IMPORTÂNCIA'
+        getter = BankNameGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, 'CAIXA ECONÔMICA FEDERAL')
+    
+    def test_gets_bank_name_when_it_is_itau(self):
+        test_string = 'BANCO: ITAÚ 778'
+        getter = BankNameGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, 'ITAÚ')
+    
+    def test_gets_none_when_bank_name_has_typo(self):
+        test_string = 'BANCO: BANCO DO BRAZIL 4683'
+        getter = BankNameGetter()
+        output = getter.get(test_string)
+        self.assertEqual(output, None)
+    
+
     
 #==============================================================================
 
@@ -444,8 +515,87 @@ class ProcessorTest(unittest.TestCase):
         processor = Processor()
         output = processor.remove_lowercase_letter(test_string)
         self.assertEqual(output, 'ÂÊÎÔÛ')
+        
+    def test_gets_last_part_when_there_are_2_parts(self):
+        test_string = '4577 09782'
+        processor = Processor()
+        output = processor.get_last_part(test_string)
+        self.assertEqual(output, '09782')
+    
+    def test_gets_last_part_when_there_is_only_one_part(self):
+        test_string = 'c09782'
+        processor = Processor()
+        output = processor.get_last_part(test_string)
+        self.assertEqual(output, 'c09782')
+    
+    def test_gets_empty_string_when_input_is_empty_string(self):
+        test_string = ''
+        processor = Processor()
+        output = processor.get_last_part(test_string)
+        self.assertEqual(output, '')
     
 class BranchNumProcessorTest(unittest.TestCase):
+    def test_gets_num_when_10_chars_has_4_digit_branch_num(self):
+        test_string = 'RASIL 1826'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '1826')
+    
+    def test_gets_num_when_10_chars_has_3_digit_branch_num(self):
+        test_string = 'RASIL 826'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0826')
+        
+    def test_gets_num_when_10_chars_has_2_digit_branch_num(self):
+        test_string = 'RASIL 26'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0026')
+        
+    def test_gets_num_when_10_chars_has_hyphen(self):
+        test_string = 'ASIL 182-6'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '1826')
+        
+    def test_gets_num_when_10_chars_has_5_digit_branch_num(self):
+        test_string = 'ASIL 01826'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0182')
+        
+    def test_gets_num_when_10_chars_has_6_digit_branch_num(self):
+        test_string = 'SIL 018261'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '1826')
+        
+    def test_gets_num_when_10_chars_has_only_a_lot_of_spaces_and_branch_num(self):
+        test_string = '      0221'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0221')
+        
+    def test_gets_num_when_10_chars_include_other_numbers(self):
+        test_string = '17-88 0221'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0221')
+        
+    def test_gets_num_when_10_chars_include_other_numbers_and_branch_num_has_3_digits(self):
+        test_string = '117-88 221'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0221')
+        
+    def test_gets_num_when_10_chars_include_other_numbers_and_branch_num_has_2_digits(self):
+        test_string = '.117-88 21'
+        processor = BranchNumProcessor()
+        output = processor.process(test_string)
+        self.assertEqual(output, '0021')
+    
+    '''
     def test_gets_clean_branch_num_when_input_is_already_clean(self):
         test_string = '6317'
         processor = BranchNumProcessor()
@@ -493,6 +643,7 @@ class BranchNumProcessorTest(unittest.TestCase):
         processor = BranchNumProcessor()
         output = processor.process(test_string)
         self.assertEqual(output, '6317')
+        '''
     
 class SubelementNumProcessorTest(unittest.TestCase):
     def test_gets_number_when_string_ends_in_space(self):
@@ -1133,6 +1284,52 @@ class AccountNumCheckerTest(unittest.TestCase):
         checker = AccountNumChecker()
         output = checker.check(test_string)
         self.assertFalse(output)
+        
+class ApDateCheckerTest(unittest.TestCase):
+    def test_returns_true_when_input_is_in_standard_date_format(self):
+        test_string = '11/07/2020'
+        checker = ApDateChecker()
+        output = checker.check(test_string)
+        self.assertTrue(output)
+    
+    def test_returns_false_if_there_are_leading_spaces(self):
+        test_string = ' 11/07/2020'
+        checker = ApDateChecker()
+        output = checker.check(test_string)
+        self.assertFalse(output)
+    
+    def test_returns_false_if_there_are_trailing_spaces(self):
+        test_string = ' 11/07/2020'
+        checker = ApDateChecker()
+        output = checker.check(test_string)
+        self.assertFalse(output)
+
+class BankNameCheckerTest(unittest.TestCase):
+    def test_returns_true_when_input_is_bb(self):
+        test_string = 'BANCO DO BRASIL'
+        checker = BankNameChecker()
+        output = checker.check(test_string)
+        self.assertTrue(output)
+    
+    def test_returns_true_when_input_is_cef(self):
+        test_string = 'CAIXA ECONÔMICA FEDERAL'
+        checker = BankNameChecker()
+        output = checker.check(test_string)
+        self.assertTrue(output)
+        
+    def test_returns_true_when_input_is_itau(self):
+        test_string = 'ITAÚ'
+        checker = BankNameChecker()
+        output = checker.check(test_string)
+        self.assertTrue(output)
+        
+    def test_returns_false_when_input_is_not_bb_or_cef_or_itau(self):
+        test_string = 'NUBANK'
+        checker = BankNameChecker()
+        output = checker.check(test_string)
+        self.assertFalse(output)
+    
+    
 
 #==============================================================================
     
@@ -1275,6 +1472,38 @@ class AccountNumPipelineTest(unittest.TestCase):
     def test_returns_none_when_input_is_wrong(self):
         test_string = 'CPF 222.222.222-22 11.3a8-2 VENCIMENTO' 
         pipeline = AccountNumPipeline()
+        output = pipeline.pipeline(test_string)
+        self.assertEqual(output, None)
+        
+class ApDatePipelineTest(unittest.TestCase):
+    def test_returns_correct_value_when_input_is_right(self):
+        test_string = 'DATA: 01/10/2021 99' 
+        pipeline = ApDatePipeline()
+        output = pipeline.pipeline(test_string)
+        self.assertEqual(output, '01/10/2021')
+    
+    def test_returns_none_when_input_is_wrong(self):
+        test_string = 'DATA: 01/10/21 99' # 2-digit year 
+        pipeline = ApDatePipeline()
+        output = pipeline.pipeline(test_string)
+        self.assertEqual(output, None)
+    
+    def test_returns_correct_value_when_input_has_data_keyword_twice(self):
+        test_string = 'DATA: 01/10/2021 CPF LOCAL E DATA:' 
+        pipeline = ApDatePipeline()
+        output = pipeline.pipeline(test_string)
+        self.assertEqual(output, '01/10/2021')
+        
+class BankNamePipelineTest(unittest.TestCase):
+    def test_returns_correct_value_when_input_is_right(self):
+        test_string = 'BANCO: CAIXA ECONÔMICA FEDERAL 7890' 
+        pipeline = BankNamePipeline()
+        output = pipeline.pipeline(test_string)
+        self.assertEqual(output, 'CAIXA ECONÔMICA FEDERAL')
+        
+    def test_returns_none_when_input_is_wrong(self):
+        test_string = 'BANCO CAIXA ECONÔMICA FEDERAL 7890' # missing :
+        pipeline = BankNamePipeline()
         output = pipeline.pipeline(test_string)
         self.assertEqual(output, None)
 

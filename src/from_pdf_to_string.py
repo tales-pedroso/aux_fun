@@ -35,3 +35,4 @@ class Pipeline():
         raw_string = self.string_getter.get(pdf_filepath)
         processed_string = self.string_processor.process(raw_string)
         return processed_string
+    

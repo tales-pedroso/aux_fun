@@ -57,19 +57,16 @@ class ApGetter(Getter):
 class ProcessNumGetter(Getter):
     def get(self, raw_string):
         start = 'EXPEDIENTE'       
-        finish = 'FAVORECIDO' 
+        finish = 'FAVORECIDO' # SOMETIMES IT IS FAVORECIDA
         
         text = self.get_text_between(start, finish, raw_string)
         return text
     
 class BranchNumGetter(Getter):
     def get(self, raw_string):
-        # gets text after ' 0' without consuming 0 and before 'HISTÓRICO'
-        start = '\s(?=\d)'           
-        finish = '(?=HISTÓRICO)'
+        ten_chars_before_historico = self.get_previous_n_chars(' HISTÓRICO', raw_string, 10)
         
-        text = self.get_text_between(start, finish, raw_string)
-        return text
+        return ten_chars_before_historico
     
 class SubelementNumGetter(Getter):
     def get(self, raw_string):
@@ -81,7 +78,7 @@ class SubelementNumGetter(Getter):
     
 class ObservationGetter(Getter):
     def get(self, raw_string):
-        start = 'Autorizo\so\spagamento\sdo'
+        start = 'Autorizo\so\spagamento\sdo' # sometimes it is de auxílio funeral
         finish = 'Certidão\sde\sÓbito'
         
         text = self.get_text_between(start, finish, raw_string)
@@ -121,7 +118,32 @@ class AccountNumGetter(Getter):
         twenty_chars_before_vencimento = self.get_previous_n_chars(' VENCIMENTO', raw_string, 20)
         
         return twenty_chars_before_vencimento
+    
+class ApDateGetter(Getter):
+    def get(self, raw_string):
+        start = 'DATA:\s'
+        finish = '(?<=\d{2}/\d{2}/\d{4})\s'
         
+        text = self.get_text_between(start, finish, raw_string)
+        return text
+        
+class BankNameGetter(Getter):
+    def get(self, raw_string):
+        # probably not the most efficient way. try a map implementation and test both them both
+        start = 'BANCO:\s'
+        list_of_finishes = ['(?<=BANCO\sDO\sBRASIL)', 
+                            '(?<=ITAÚ)',
+                            '(?<=CAIXA\sECONÔMICA\sFEDERAL)']
+        
+        list_of_results = [self.get_text_between(start, finish, raw_string) for finish in list_of_finishes]
+        
+        result = [result for result in list_of_results if result is not None]
+        
+        if len(result) == 0:
+            return None
+        else:
+            return result.pop()
+    
 #==============================================================================
 class Processor():
     def strip(self, text):
@@ -175,9 +197,14 @@ class Processor():
         processed_text = match.groups()[0]
         return processed_text
     
-    def change_dots_into_slashes(self, text): # buggy
+    def change_dots_into_slashes(self, text):
         from_dots_to_slashes = sub('\.', '/', text)
         return from_dots_to_slashes
+    
+    def get_last_part(self, text):
+        split_text = text.split(' ')
+        last_part = split_text[-1]
+        return last_part
     
     def process(self, text):
         # default behavior of processors. if a class needs something different, it overrides this
@@ -185,9 +212,16 @@ class Processor():
 
 class BranchNumProcessor(Processor):
     def process(self, text):
-        no_spaces = self.remove_all_spaces(text)
+        last_part = self.get_last_part(text)
+        no_spaces = self.remove_all_spaces(last_part)
         no_dots = self.remove_dots(no_spaces)
         no_hyphen = self.remove_hyphen(no_dots)
+        
+        if len(no_hyphen) > 6:
+            return None
+        elif len(no_hyphen) == 6:
+            no_hyphen = no_hyphen[1:]
+        
         first_4_chars = self.truncate_to_first_n_chars(no_hyphen, 4)
         zfilled = self.zfill_until_4_chars(first_4_chars)
         return zfilled
@@ -370,6 +404,19 @@ class AccountNumChecker(Checker):
         is_valid = self.has_pattern(pattern, rest)
         return is_valid
         
+class ApDateChecker(Checker):
+    def check(self, processed_text):
+        pattern = '^\d{2}/\d{2}/\d{4}$'
+        is_valid = self.has_pattern(pattern, processed_text)
+        return is_valid
+    
+class BankNameChecker(Checker):
+    def check(self, processed_text):
+        valid_names = {'BANCO DO BRASIL', 'ITAÚ', 'CAIXA ECONÔMICA FEDERAL'}
+        is_valid = processed_text in valid_names
+        
+        return is_valid
+    
 #=============================================================================
 class Pipeline():
     def __init__(self, getter, processor, checker):
@@ -494,3 +541,11 @@ class CpfPipeline(DoubleCheckerPipeline):
 class AccountNumPipeline(Pipeline):
     def __init__(self):
         super().__init__(AccountNumGetter, AccountNumProcessor, AccountNumChecker)
+        
+class ApDatePipeline(Pipeline):
+    def __init__(self):
+        super().__init__(ApDateGetter, Processor, ApDateChecker)
+        
+class BankNamePipeline(Pipeline):
+    def __init__(self):
+        super().__init__(BankNameGetter, Processor, BankNameChecker)
