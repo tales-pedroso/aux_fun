@@ -17,6 +17,10 @@ Sim!
 
 Extrai a string de um pdf; usa regex para extrair as partes importantes da string; usa Selenium para preencher os formulários do Siafi.
 
+## Quero ver o código, por onde é melhor começar?
+
+Por pipeline.py para ver a extração dos dados. Ou por dh_creation.py, se quiser ver a parte do Selenium.
+
 ## Mas o código não está comentado
 
 Como o programa só é útil para o pessoal do IBGE, eu foquei em escrever só para funcionar. Eu era o único que programava da equipe, então não valia a pena descrever todas as funções.
