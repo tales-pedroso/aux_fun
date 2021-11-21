@@ -57,7 +57,7 @@ class ApGetter(Getter):
 class ProcessNumGetter(Getter):
     def get(self, raw_string):
         start = 'EXPEDIENTE'       
-        finish = 'FAVORECIDO' # SOMETIMES IT IS FAVORECIDA
+        finish = 'FAVORECIDO' 
         
         text = self.get_text_between(start, finish, raw_string)
         return text
@@ -78,7 +78,7 @@ class SubelementNumGetter(Getter):
     
 class ObservationGetter(Getter):
     def get(self, raw_string):
-        start = 'Autorizo\so\spagamento\sdo' # sometimes it is de auxílio funeral
+        start = 'Autorizo\so\spagamento\sdo' 
         finish = 'Certidão\sde\sÓbito'
         
         text = self.get_text_between(start, finish, raw_string)
