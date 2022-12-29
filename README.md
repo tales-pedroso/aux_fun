@@ -1,9 +1,9 @@
-# Projeto Graviola 
+# Projeto aux_fun 
 ==============================================================
 
 ## O que é?
 
-Um projeto de automação que foi usado em um processo no IBGE. Trata-se de um RPA (Robotic Process Automation) feito para o Departamento de Orçamento e Finanças. Resumidamente, ele substitui um ser humano ao extrair informação de um pdf e lançá-la no Siafi (sistema de pagamentos do Governo Federal). Usado como prova de conceito para um programa maior de automação dentro da empresa. 
+Um projeto de automação que foi usado em um processo no IBGE. Trata-se de um RPA (Robotic Process Automation) feito para executar o pagamento de um (ou mais) auxílio-funeral.  Resumidamente, ele substitui um ser humano ao extrair informação de um pdf e lançá-la no Siafi (sistema de pagamentos do Governo Federal). Usado como prova de conceito para um programa maior de automação dentro da empresa. 
 
 ## Veja o Graviola em ação
 https://www.youtube.com/watch?v=QTp-RSuUNtI
