@@ -3,7 +3,7 @@
 
 ## O que é?
 
-Um projeto de automação que foi usado em um processo no IBGE. Ele simula um ser humano do Departamento de Orçamento e Finanças, ao extrair informação de um pdf e lançá-la no Siafi (sistema de pagamentos do Governo Federal). 
+Um projeto de automação que foi usado em um processo no IBGE. Trata-se de um RPA (Robotic Process Automation) feito para o Departamento de Orçamento e Finanças. Resumidamente, ele substitui um ser humano ao extrair informação de um pdf e lançá-la no Siafi (sistema de pagamentos do Governo Federal). Usado como prova de conceito para um programa maior de automação dentro da empresa. 
 
 ## Veja o Graviola em ação
 https://www.youtube.com/watch?v=QTp-RSuUNtI
@@ -19,7 +19,7 @@ Extrai a string de um pdf; usa regex para extrair as partes importantes da strin
 
 ## Quero ver o código, por onde é melhor começar?
 
-Por pipeline.py para ver a extração dos dados. Ou por dh_creation.py, se quiser ver a parte do Selenium.
+Por pipeline.py para ver o processamento dos dados. Ou por dh_creation.py, se quiser ver a parte do RPA (Selenium).
 
 ## Mas o código não está comentado
 
@@ -27,7 +27,7 @@ Como o programa só é útil para o pessoal do IBGE, eu foquei em escrever só p
 
 ## E vai ter continuidade?
 
-Não, este projeto está encerrado. Apesar de ser divertido assustar funcionário público com projeto de automação, eu quero escrever algo que mais pessoas possam usar. 
+Não, este projeto está encerrado.
 
 ## Dependências
 
@@ -40,4 +40,4 @@ Não, este projeto está encerrado. Apesar de ser divertido assustar funcionári
 
 ## Algo mais?
 
-Por lei, esses dados são públicos e podem ser consultados no Portal da Transparência: https://www.portaltransparencia.gov.br/
+Por lei, dados financeiros do Governo Federal são públicos e podem ser consultados no Portal da Transparência: https://www.portaltransparencia.gov.br/
